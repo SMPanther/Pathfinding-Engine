@@ -1,7 +1,7 @@
 #pragma once
 #include <SFML/Graphics.hpp>
 #include "Graph/Graph.h"
-#include "C:\VISUAL STUDIO PROJECTS\Pathfinding Engine\Pathfinding Engine\Data Structures\DataStructures.h"
+#include "Data Structures\DataStructures.h"
 #include <cmath>
 // ============================================================
 //  PathRenderer.h  —  Animated path visualization

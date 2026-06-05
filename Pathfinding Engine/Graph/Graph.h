@@ -1,6 +1,6 @@
 #pragma once
 #include "Graph/GraphNode.h"
-#include "C:\VISUAL STUDIO PROJECTS\Pathfinding Engine\Pathfinding Engine\Data Structures\DataStructures.h"
+#include "Data Structures\DataStructures.h"
 #include <cmath>
 #include <fstream>
 #include <sstream>

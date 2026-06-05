@@ -1,6 +1,6 @@
 #pragma once
 #include "Graph/Edge.h"
-#include "C:\VISUAL STUDIO PROJECTS\Pathfinding Engine\Pathfinding Engine\Data Structures\DataStructures.h"
+#include "Data Structures\DataStructures.h"
 // ============================================================
 //  GraphNode.h  —  Single Node in the Navigation Graph
 //  UCP BSCS — Data Structures Project

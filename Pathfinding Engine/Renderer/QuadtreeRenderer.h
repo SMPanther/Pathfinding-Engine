@@ -1,6 +1,6 @@
 #pragma once
 #include <SFML/Graphics.hpp>
-#include "C:\VISUAL STUDIO PROJECTS\Pathfinding Engine\Pathfinding Engine\Data Structures\DataStructures.h"
+#include "Data Structures\DataStructures.h"
 #include <cmath>
 // ============================================================
 //  QuadtreeRenderer.h  v2
