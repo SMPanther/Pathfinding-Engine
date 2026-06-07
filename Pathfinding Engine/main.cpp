@@ -5,7 +5,7 @@
 //  Controls:
 //    Left Click        → set goal (pathfind with current algo)
 //    Right Click       → place/remove obstacle (dynamic rerouting)
-//    Middle Click      → spawn NPC at cursor
+//    [N] key           → spawn NPC at cursor
 //    [1] A*  [2] BFS  [3] DFS
 //    [Q] Quadtree overlay
 //    [P] Path overlay
@@ -36,6 +36,33 @@ static const int   GRID_COLS = 30;
 
 // ── Map ───────────────────────────────────────────────────────
 static int MAP[GRID_ROWS][GRID_COLS] = {
+    {0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0},
+    {0,1,1,1,0,0,0,0,0,0, 0,0,1,1,1,1,0,0,0,0, 0,0,0,0,0,1,1,1,0,0},
+    {0,1,0,1,0,0,0,0,0,0, 0,0,1,0,0,1,0,0,0,0, 0,0,0,0,0,1,0,1,0,0},
+    {0,1,0,0,0,0,1,1,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1,0,0},
+    {0,0,0,0,0,0,1,1,0,0, 0,0,0,0,0,0,0,0,0,0, 0,1,1,1,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,0, 1,1,1,0,0,0,0,0,0,0, 0,1,0,1,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,0, 0,0,1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0},
+    {0,0,1,1,1,0,0,0,0,0, 0,0,0,0,0,0,0,1,1,1, 1,0,0,0,0,0,0,0,0,0},
+    {0,0,0,0,1,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,1,1,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,1,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,0, 0,0,0,1,1,1,0,0,0,0, 0,0,0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,1,1,0, 0,0,0,0,0,1,0,0,0,0, 0,0,0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,1,1,1,0,0,0,0,0},
+    {0,0,1,1,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,1,0,0,0,0,0},
+    {0,0,0,1,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,1, 1,1,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,1,1,0,0},
+    {0,0,0,0,0,0,0,0,0,0, 0,1,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1,0,0},
+    {0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,1,1,0,0,0, 0,0,0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,1,0,0,0, 0,0,0,0,0,0,0,0,0,0},
+    {0,1,1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,1,0},
+    {0,0,1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,1,0},
+    {0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0},
+};
+
+// ── Original map snapshot for A-key reset ────────────────────
+// This is a compile-time copy of the initial MAP state
+static const int ORIGINAL_MAP[GRID_ROWS][GRID_COLS] = {
     {0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0},
     {0,1,1,1,0,0,0,0,0,0, 0,0,1,1,1,1,0,0,0,0, 0,0,0,0,0,1,1,1,0,0},
     {0,1,0,1,0,0,0,0,0,0, 0,0,1,0,0,1,0,0,0,0, 0,0,0,0,0,1,0,1,0,0},
@@ -297,6 +324,56 @@ int main()
                         pathRenderer.clearPaths();
                         explored.clear();
                         break;
+
+                    // ── A: Reset environment ───────────────────
+                    case sf::Keyboard::A: {
+                        // Clear all NPCs
+                        while (npcMgr.getNPCCount() > 0)
+                            npcMgr.removeNPC(npcMgr.getNPCByIndex(0)->id);
+                        // Reset map to original (remove all placed obstacles)
+                        // Re-place only the original hardcoded obstacles by rebuilding
+                        // We reset MAP to the original static definition
+                        for (int r = 0; r < GRID_ROWS; r++)
+                            for (int c = 0; c < GRID_COLS; c++)
+                                MAP[r][c] = ORIGINAL_MAP[r][c];
+                        rebuildGraph(graph);
+                        gridRenderer.buildGridLines(graph);
+                        pathRenderer.clearPaths();
+                        explored.clear();
+                        goalNodeId = -1;
+                        // Re-spawn default 8 NPCs
+                        struct SP { float x, y; };
+                        SP pts[] = {{16,16},{80,16},{272,16},{464,16},
+                                    {16,272},{16,464},{464,272},{464,464}};
+                        for (int i = 0; i < 8; i++)
+                            npcMgr.spawnNPC(pts[i].x, pts[i].y, 90.0f + i*8.0f);
+                        break;
+                    }
+
+                    // ── K: Kill NPC nearest to mouse cursor ────
+                    case sf::Keyboard::K: {
+                        sf::Vector2i mp = sf::Mouse::getPosition(window);
+                        float mx = (float)mp.x;
+                        float my = (float)mp.y;
+                        int   bestId   = -1;
+                        float bestDist = 30.0f;  // only kill if within 30px
+                        for (int i = 0; i < npcMgr.getNPCCount(); i++) {
+                            NPC* n = npcMgr.getNPCByIndex(i);
+                            float dx = n->x - mx;
+                            float dy = n->y - my;
+                            float d  = std::sqrt(dx*dx + dy*dy);
+                            if (d < bestDist) { bestDist = d; bestId = n->id; }
+                        }
+                        if (bestId != -1) {
+                            npcMgr.removeNPC(bestId);
+                            pathRenderer.clearPaths();
+                            // Redraw remaining paths
+                            if (goalNodeId != -1)
+                                rerouteAll(npcMgr, graph, pathRenderer,
+                                           goalNodeId, algo, showPaths, explored);
+                        }
+                        break;
+                    }
                     case sf::Keyboard::R:
                         npcMgr.assignRandomGoals(graph, 12345u);
                         break;
@@ -371,20 +448,19 @@ int main()
                 }
             }
 
-            // ── N key: spawn NPC at mouse position ────────────────────
+            // ── N Key: spawn NPC at mouse position ──────────────
             if (event.type == sf::Event::KeyPressed &&
                 event.key.code == sf::Keyboard::N)
             {
+                sf::Vector2i mp = sf::Mouse::getPosition(window);
                 int clickRow = 0, clickCol = 0;
-                worldToCell((float)sf::Mouse::getPosition(window).x,
-                    (float)sf::Mouse::getPosition(window).y,
-                    CELL_SIZE, clickRow, clickCol);
+                worldToCell((float)mp.x, (float)mp.y,
+                            CELL_SIZE, clickRow, clickCol);
                 if (graph.getId(clickRow, clickCol) != -1) {
                     float wx = clickCol * CELL_SIZE + CELL_SIZE * 0.5f;
                     float wy = clickRow * CELL_SIZE + CELL_SIZE * 0.5f;
                     NPC* newNPC = npcMgr.spawnNPC(wx, wy, 85.0f);
 
-                    // Fix #2: immediately draw path for newly spawned NPC
                     if (newNPC && goalNodeId != -1) {
                         int startNode = graph.getId(clickRow, clickCol);
                         Stack<int> p = computePath(graph, startNode,

@@ -1,6 +1,6 @@
 #pragma once
 #include "Graph/Graph.h"
-#include "Data Structures\DataStructures.h"
+#include "Data Structures/DataStructures.h"
 #include "Pathfinding/Pathfinding.h"
 #include <cmath>
 // ============================================================
@@ -134,10 +134,6 @@ public:
         float dy = target.y - y;
         float dist = std::sqrt(dx * dx + dy * dy);
 
-        // Apply separation force
-        dx += sepX * 0.3f;
-        dy += sepY * 0.3f;
-
         // Arrived at waypoint threshold
         const float ARRIVAL_THRESHOLD = 4.0f;
         if (dist < ARRIVAL_THRESHOLD) {
@@ -158,8 +154,52 @@ public:
         // Normalize direction and move
         float len = std::sqrt(dx * dx + dy * dy);
         if (len > 0.0001f) {
-            x += (dx / len) * speed * dt;
-            y += (dy / len) * speed * dt;
+            float newX = x + (dx / len) * speed * dt;
+            float newY = y + (dy / len) * speed * dt;
+
+            // ── Boundary clamp ────────────────────────────────
+            // Keep NPC inside world bounds
+            float minX = 10.0f;  // NPC_RADIUS
+            float minY = 10.0f;
+            float maxX = (float)(graph.getGridCols()) * graph.getCellSize() - 10.0f;
+            float maxY = (float)(graph.getGridRows()) * graph.getCellSize() - 10.0f;
+            if (newX < minX) newX = minX;
+            if (newX > maxX) newX = maxX;
+            if (newY < minY) newY = minY;
+            if (newY > maxY) newY = maxY;
+
+            // ── Obstacle clamp ────────────────────────────────
+            // Check if new position lands inside an obstacle cell
+            // If so, try X-only and Y-only movement (sliding along walls)
+            int newCol = (int)(newX / graph.getCellSize());
+            int newRow = (int)(newY / graph.getCellSize());
+            bool newCellWalkable = graph.nodeExists(graph.getId(newRow, newCol));
+
+            if (newCellWalkable) {
+                // Safe to move
+                x = newX;
+                y = newY;
+            } else {
+                // Try sliding along X axis only
+                float slideX = x + (dx / len) * speed * dt;
+                float slideY = y;
+                int sxCol = (int)(slideX / graph.getCellSize());
+                int sxRow = (int)(slideY / graph.getCellSize());
+                if (graph.nodeExists(graph.getId(sxRow, sxCol))) {
+                    x = slideX;
+                } else {
+                    // Try sliding along Y axis only
+                    float syX = x;
+                    float syY = y + (dy / len) * speed * dt;
+                    int syCol = (int)(syX / graph.getCellSize());
+                    int syRow = (int)(syY / graph.getCellSize());
+                    if (graph.nodeExists(graph.getId(syRow, syCol))) {
+                        y = syY;
+                    }
+                    // If both blocked: NPC stays put (wall collision)
+                    // Path will eventually reroute on next goal assignment
+                }
+            }
         }
 
         sepX = sepY = 0.0f;   // reset separation each frame
@@ -221,12 +261,7 @@ private:
         setGoal(patrolRoute.front(), graph);
     }
 
-    void applySeparation(float dt) {
-        float len = std::sqrt(sepX*sepX + sepY*sepY);
-        if (len > 0.0001f) {
-            x += (sepX / len) * speed * 0.5f * dt;
-            y += (sepY / len) * speed * 0.5f * dt;
-        }
-        sepX = sepY = 0.0f;
+    void applySeparation(float /*dt*/) {
+        sepX = sepY = 0.0f;  // handled by NPCManager
     }
 };

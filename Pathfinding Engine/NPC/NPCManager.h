@@ -1,6 +1,6 @@
 #pragma once
 #include "NPC.h"
-#include "Data Structures\DataStructures.h"
+#include "Data Structures/DataStructures.h"
 #include "Graph/Graph.h"
 #include <cmath>
 // ============================================================
@@ -41,31 +41,109 @@ private:
             quadtree->insert(npcs[i]->x, npcs[i]->y, npcs[i]->id);
     }
 
-    // ── Compute and apply separation forces ──────────────────
-    void applySeparationForces() {
+    // ── Compute and apply separation — obstacle aware ────────
+    void applySeparationForces(const Graph& graph) {
+        float cell = graph.getCellSize();
+
         for (int i = 0; i < npcCount; i++) {
             NPC* a = npcs[i];
 
-            // Query quadtree for neighbors within separation radius
+            // Accumulate repulsion from nearby NPCs
+            float repX = 0.0f, repY = 0.0f;
+
             LinkedList<AgentPoint> nearby = quadtree->query(
                 a->x, a->y,
                 SEPARATION_RADIUS, SEPARATION_RADIUS
             );
 
             for (auto& pt : nearby) {
-                if (pt.agentId == a->id) continue;   // skip self
-
+                if (pt.agentId == a->id) continue;
                 float dx   = a->x - pt.px;
                 float dy   = a->y - pt.py;
                 float dist = std::sqrt(dx * dx + dy * dy);
-
                 if (dist < SEPARATION_RADIUS && dist > 0.001f) {
-                    // Force magnitude: stronger when closer
                     float force = (SEPARATION_RADIUS - dist) / SEPARATION_RADIUS;
-                    a->sepX += (dx / dist) * force;
-                    a->sepY += (dy / dist) * force;
+                    repX += (dx / dist) * force * 1.2f;
+                    repY += (dy / dist) * force * 1.2f;
                 }
             }
+
+            // No repulsion needed
+            if (std::fabs(repX) < 0.001f && std::fabs(repY) < 0.001f)
+                continue;
+
+            // Normalise and scale repulsion
+            float rLen = std::sqrt(repX*repX + repY*repY);
+            float moveAmt = 1.8f;   // pixels to push per frame
+            float mvX = (repX / rLen) * moveAmt;
+            float mvY = (repY / rLen) * moveAmt;
+
+            float nx = a->x + mvX;
+            float ny = a->y + mvY;
+
+            // Hard world boundary clamp
+            float maxX = graph.getGridCols() * cell - cell * 0.5f;
+            float maxY = graph.getGridRows() * cell - cell * 0.5f;
+            nx = nx < cell*0.5f ? cell*0.5f : (nx > maxX ? maxX : nx);
+            ny = ny < cell*0.5f ? cell*0.5f : (ny > maxY ? maxY : ny);
+
+            // Check destination cell walkable
+            int nc = (int)(nx / cell);
+            int nr = (int)(ny / cell);
+
+            if (graph.nodeExists(graph.getId(nr, nc))) {
+                // Fully walkable — apply
+                a->x = nx;
+                a->y = ny;
+            } else {
+                // Try X only
+                float tx = a->x + mvX;
+                tx = tx < cell*0.5f ? cell*0.5f : (tx > maxX ? maxX : tx);
+                int txc = (int)(tx / cell);
+                int txr = (int)(a->y / cell);
+                if (graph.nodeExists(graph.getId(txr, txc))) {
+                    a->x = tx;
+                } else {
+                    // Try Y only
+                    float ty = a->y + mvY;
+                    ty = ty < cell*0.5f ? cell*0.5f : (ty > maxY ? maxY : ty);
+                    int tyc = (int)(a->x / cell);
+                    int tyr = (int)(ty / cell);
+                    if (graph.nodeExists(graph.getId(tyr, tyc))) {
+                        a->y = ty;
+                    }
+                    // Both blocked — NPC stays, wall wins
+                }
+            }
+        }
+    }
+
+    // ── Safety snap — fix any NPC that ended up inside obstacle ──
+    void safetySnap(const Graph& graph) {
+        float cell = graph.getCellSize();
+        for (int i = 0; i < npcCount; i++) {
+            NPC* a = npcs[i];
+            int cc = (int)(a->x / cell);
+            int cr = (int)(a->y / cell);
+            if (graph.nodeExists(graph.getId(cr, cc))) continue;
+
+            // Find nearest walkable cell within 3-cell radius
+            float bestDist = 1e9f;
+            float bestX = a->x, bestY = a->y;
+            for (int dr = -3; dr <= 3; dr++) {
+                for (int dc = -3; dc <= 3; dc++) {
+                    int tr = cr+dr, tc = cc+dc;
+                    if (tr<0||tr>=graph.getGridRows()) continue;
+                    if (tc<0||tc>=graph.getGridCols()) continue;
+                    if (!graph.nodeExists(graph.getId(tr,tc))) continue;
+                    float wx = (tc+0.5f)*cell;
+                    float wy = (tr+0.5f)*cell;
+                    float d  = (wx-a->x)*(wx-a->x)+(wy-a->y)*(wy-a->y);
+                    if (d < bestDist) { bestDist=d; bestX=wx; bestY=wy; }
+                }
+            }
+            a->x = bestX;
+            a->y = bestY;
         }
     }
 
@@ -163,12 +241,15 @@ public:
         // 1. Rebuild spatial index
         rebuildQuadtree();
 
-        // 2. Compute separation forces using quadtree
-        applySeparationForces();
-
-        // 3. Update each NPC's position along its path
+        // 2. Move each NPC along its path
         for (int i = 0; i < npcCount; i++)
             npcs[i]->update(dt, graph);
+
+        // 3. Apply separation AFTER path movement, obstacle-aware
+        applySeparationForces(graph);
+
+        // 4. Safety snap — fix any NPC stuck in obstacle
+        safetySnap(graph);
     }
 
     // ── Getters ───────────────────────────────────────────────

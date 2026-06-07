@@ -100,7 +100,7 @@ public:
         // ── Legend (bottom) ───────────────────────────────────
         snprintf(legendBuf, sizeof(legendBuf),
             "[LClick] Goal   [RClick] Place/Remove Obstacle   [N] Spawn NPC\n"
-            "[1] A*(green)   [2] BFS(blue)   [3] DFS(orange)\n"
+            "[1] A*(green)   [2] BFS(blue)   [3] DFS(orange)   [A] Reset All\n"
             "[Q] Quadtree    [P] Paths    [E] Exploration    [R] Random    [C] Clear"
         );
         legendText.setString(legendBuf);
